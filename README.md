@@ -35,8 +35,8 @@ return {
     "CharcoalInsertLink",
     "CharcoalGotoLink",
   },
-  config = function(_, opts)
-    require("charcoal-notes").setup(opts)
+  config = function()
+    require("charcoal-notes").setup()
 
     -- Key Mappings
     vim.keymap.set("n", "<leader>nb", "<cmd>CharcoalBacklinks<cr>", { silent = true, desc = "Notes: Show Backlinks" })
