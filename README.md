@@ -23,7 +23,7 @@ Install using your favorite plugin manager. Here is an example using Lazy.
 
 ```lua
 return {
-  "githubname/charcoal-notes.nvim",
+  "0xBEEB/charcoal-notes.nvim",
   dependencies = { "ibhagwan/fzf-lua" },
   ft = { "markdown" },
   cmd = {
@@ -31,7 +31,6 @@ return {
     "CharcoalBacklnks",
     "CharcoalLinks",
     "CharcoalTags",
-    "CharcoalDaily",
     "CharcoalIndex",
     "CharcoalInsertLink",
     "CharcoalGotoLink",
@@ -39,15 +38,15 @@ return {
   config = function(_, opts)
     require("charcoal-notes").setup(opts)
 
-	-- Key Mappings
-	vim.keymap.set("n", "<leader>nb", "<cmd>CharcoalBacklinks<cr>", { silent = true, desc = "Notes: Show Backlinks" })
-	vim.keymap.set("n", "<leader>nl", "<cmd>CharcoalLinks<cr>", { silent = true, desc = "Notes: Show Outgoing Links" })
-	vim.keymap.set("n", "<leader>ni", "<cmd>CharcoalIndex<cr>", { silent = true, desc = "Notes: Re-index Repository" })
-	vim.keymap.set("n", "<leader>nn", "<cmd>CharcoalEdit<cr>", { silent = true, desc = "Notes: Edit Note" })
-	vim.keymap.set("n", "<leader>nt", "<cmd>CharcoalTags<cr>", { silent = true, desc = "Notes: Search Tags" })
-	vim.keymap.set("n", "<leader>nk", "<cmd>CharcoalInsertLink<cr>", { silent = true, desc = "Notes: Insert Link" })
-	vim.keymap.set("n", "gf", "<cmd>CharcoalGotoLink<cr>", { silent = true, desc = "Goto File (wikilink aware)" })
-	vim.keymap.set("i", "<C-l>", "<cmd>CharcoalInsertLink<cr>", { silent = true, desc = "Notes: Insert Link" })
+    -- Key Mappings
+    vim.keymap.set("n", "<leader>nb", "<cmd>CharcoalBacklinks<cr>", { silent = true, desc = "Notes: Show Backlinks" })
+    vim.keymap.set("n", "<leader>nl", "<cmd>CharcoalLinks<cr>", { silent = true, desc = "Notes: Show Outgoing Links" })
+    vim.keymap.set("n", "<leader>ni", "<cmd>CharcoalIndex<cr>", { silent = true, desc = "Notes: Re-index Repository" })
+    vim.keymap.set("n", "<leader>nn", "<cmd>CharcoalEdit<cr>", { silent = true, desc = "Notes: Edit Note" })
+    vim.keymap.set("n", "<leader>nt", "<cmd>CharcoalTags<cr>", { silent = true, desc = "Notes: Search Tags" })
+    vim.keymap.set("n", "<leader>nk", "<cmd>CharcoalInsertLink<cr>", { silent = true, desc = "Notes: Insert Link" })
+    vim.keymap.set("n", "gf", "<cmd>CharcoalGotoLink<cr>", { silent = true, desc = "Goto File (wikilink aware)" })
+    vim.keymap.set("i", "<C-l>", "<cmd>CharcoalInsertLink<cr>", { silent = true, desc = "Notes: Insert Link" })
   end
 }
 ```

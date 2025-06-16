@@ -294,16 +294,6 @@ function M.setup()
 		end
 	end, {})
 
-	-- Key Mappings
-	vim.keymap.set("n", "<leader>nb", "<cmd>CharcoalBacklinks<cr>", { silent = true, desc = "Notes: Show Backlinks" })
-	vim.keymap.set("n", "<leader>nl", "<cmd>CharcoalLinks<cr>", { silent = true, desc = "Notes: Show Outgoing Links" })
-	vim.keymap.set("n", "<leader>ni", "<cmd>CharcoalIndex<cr>", { silent = true, desc = "Notes: Re-index Repository" })
-	vim.keymap.set("n", "<leader>nn", "<cmd>CharcoalEdit<cr>", { silent = true, desc = "Notes: Edit Note" })
-	vim.keymap.set("n", "<leader>nt", "<cmd>CharcoalTags<cr>", { silent = true, desc = "Notes: Search Tags" })
-	vim.keymap.set("n", "<leader>nk", "<cmd>CharcoalInsertLink<cr>", { silent = true, desc = "Notes: Insert Link" })
-	vim.keymap.set("n", "gf", "<cmd>CharcoalGotoLink<cr>", { silent = true, desc = "Goto File (wikilink aware)" })
-	vim.keymap.set("i", "<C-l>", "<cmd>CharcoalInsertLink<cr>", { silent = true, desc = "Notes: Insert Link" })
-
 	-- Autocommands
 	local note_cli_group = vim.api.nvim_create_augroup("CharcoalCliAu", { clear = true })
 	vim.api.nvim_create_autocmd("BufWritePost", {
