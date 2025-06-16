@@ -1,0 +1,258 @@
+#!/usr/bin/env bash
+
+#
+# charcoal-notes: A command-line tool for thought.
+# by Briar Schreiber <briarrose@mailbox.org>
+#
+# A Bash script for managing a repository of Markdown notes, inspired by
+# Obsidian but built on top of core Unix utilities.
+#
+
+# --- Configuration ---
+EDITOR=${EDITOR:-"nvim"}
+NOTES_META_DIR=".charcoal"
+INDEX_FILE_NAME="index"
+
+# --- Core Functions ---
+
+# Print an error message to stderr and exit.
+# Usage: die "Error message" [exit_code]
+die() {
+  echo "ERROR: $1" >&2
+  exit "${2:-1}"
+}
+
+# Finds the root of the notes repository.
+find_repo_root() {
+  local search_path="$PWD"
+  while [[ "$search_path" != "/" && -z "$REPO_ROOT" ]]; do
+    if [[ -d "$search_path/$NOTES_META_DIR" ]]; then
+      REPO_ROOT="$search_path"
+    fi
+    search_path=$(dirname "$search_path")
+  done
+
+  if [[ -z "$REPO_ROOT" && -n "$NOTES_DIR" && -d "$NOTES_DIR/$NOTES_META_DIR" ]]; then
+    REPO_ROOT="$NOTES_DIR"
+  fi
+
+  [[ -z "$REPO_ROOT" ]] && die "Not a notes repository. Run 'charcoal-notes init' to create one."
+}
+
+# Display the main help and usage message.
+usage() {
+cat << EOF
+charcoal-notes: A tool for managing a repository of Markdown notes.
+
+USAGE:
+    charcoal-notes <COMMAND> [OPTIONS] [ARGUMENTS]
+
+COMMANDS:
+    new [NAME]          Creates a new note with the given name.
+    list                Lists all notes, one per line (relative path).
+    tags                Lists all unique tags in the repository.
+    find [TAG]          Finds all notes associated with a given #TAG.
+    links [NOTE]        Lists all notes that the given NOTE links to.
+    backlinks [Note]    Lists all notes that link to the given NOTE.
+    search [TERM]       Performs a full-text search across all notes.
+    index               (Slow) Rebuilds the entire index from scratch.
+    index-file [FILE]   (Fast) Incrementally updates the index for a single file.
+    clean               Removes entries for deleted notes from the index.
+    init                Initializes a new notes repository in the current directory.
+    help                Show this help message.
+
+ENVIRONMENT:
+    NOTES_DIR           Set a default path for the notes repository root.
+EOF
+exit 0
+}
+
+# --- Indexing and Parsing Functions ---
+#
+# Parses a single file for tags and links and prints them to stdout.
+parse_file() {
+    local file_path="$1"
+    local repo_root="$2"
+    local relative_path="${file_path#$repo_root/}"
+
+    # Find tags: #some-tag or #some/tag
+    grep -o '#[a-zA-Z0-9_/]\+' "$file_path" | sed 's/#//' | while read -r tag; do
+        echo "TAG:$tag:$relative_path"
+    done
+
+    # Find links: [[some note name]] or [[some-note.md]]
+    grep -oP '\[\[\K[^\]]+' "$file_path" | sed 's/\.md$//' | while read -r link; do
+        echo "LINK:$relative_path:$link.md"
+    done
+}
+
+cmd_index() {
+  echo "Indexing notes in '$REPO_ROOT'..."
+  local index_path="$REPO_ROOT/$NOTES_META_DIR/$INDEX_FILE_NAME"
+  
+  find "$REPO_ROOT" -path "$REPO_ROOT/$NOTES_META_DIR" -prune -o -name "*.md" -print0 |
+    while IFS= read -r -d $'\0' note_file; do
+      parse_file "$note_file" "$REPO_ROOT"
+    done > "$index_path"
+
+  echo "Index rebuild complete."
+}
+
+# Updates the index for a single file.
+cmd_index_file() {
+  local note_path_to_index="$1"
+  [[ -z "$note_path_to_index" ]] && die "No file provided to index-file."
+
+  local index_path="$REPO_ROOT/$NOTES_META_DIR/$INDEX_FILE_NAME"
+  local relative_path="${note_path_to_index#$REPO_ROOT/}"
+
+  # Atomically remove old entries for this file.
+  awk -F: -v path="$relative_path" '! ( ($1 == "LINK" && $2 == path) || ($1 == "TAG" && $3 == path) )' "$index_path" > "${index_path}.tmp"
+  mv "${index_path}.tmp" "$index_path"
+
+  if [[ -f "$note_path_to_index" ]]; then
+    parse_file "$note_path_to_index" "$REPO_ROOT" >> "$index_path"
+  fi
+}
+
+cmd_clean() {
+    echo "Cleaning index..."
+    local index_path="$REPO_ROOT/$NOTES_META_DIR/$INDEX_FILE_NAME"
+    local temp_index="${index_path}.tmp"
+    
+    while IFS= read -r line; do
+        IFS=':' read -r type val1 val2 <<< "$line"
+        local keep_line=true
+        if [[ "$type" == "TAG" ]]; then
+            [[ ! -f "$REPO_ROOT/$val2" ]] && keep_line=false
+        elif [[ "$type" == "LINK" ]]; then
+            [[ ! -f "$REPO_ROOT/$val1" || ! -f "$REPO_ROOT/$val2" ]] && keep_line=false
+        fi
+
+        [[ "$keep_line" == true ]] && echo "$line"
+    done < "$index_path" > "$temp_index"
+
+    mv "$temp_index" "$index_path"
+    echo "Index cleaned."
+}
+
+# --- User-Facing Commands ---
+
+cmd_init() {
+  [[ -d "$NOTES_META_DIR" ]] && die "Repository already initialized."
+  mkdir -p "$NOTES_META_DIR"
+  touch "$NOTES_META_DIR/$INDEX_FILE_NAME"
+  echo "Initialized new notes repository in '$PWD'."
+}
+
+# Creates a new note.
+cmd_new() {
+  find_repo_root
+  local note_name="$1"
+  local template_name="$2"
+  [[ -z "$note_name" ]] && die "Usage: charcoal-notes new <name>"
+
+  note_name=${note_name%.md}
+  local note_path="$REPO_ROOT/${note_name}.md"
+
+  if [[ ! -f "$note_path" ]]; then
+    echo "Creating new note at '$note_path'..."
+    mkdir -p "$(dirname "$note_path")"
+    touch "$note_path"
+  fi
+
+  "$EDITOR" "$note_path"
+  # Index the file once the editor is closed.
+  cmd_index_file "$note_path" > /dev/null
+}
+
+cmd_list() {
+  find "$REPO_ROOT" -path "$REPO_ROOT/$NOTES_META_DIR" -prune -o -name "*.md" -print |
+    sed -e "s#^$REPO_ROOT/##" -e 's/\.md$//'
+}
+
+# Interactively find or create a note using fzf
+cmd_fzf_interactive() {
+  local selected_note
+  if ! [ -x "$(command -v fzf)" ]; then
+    die "fzf is required for interactive mode"
+  fi
+  selected_note=$(cmd_list | fzf --prompt="Note> " --bind enter:accept-or-print-query)
+
+  # If it's a new string make a note.
+  [[ -n "$selected_note" ]] && cmd_new "$selected_note"
+}
+
+cmd_tags() {
+  grep '^TAG:' "$REPO_ROOT/$NOTES_META_DIR/$INDEX_FILE_NAME" | cut -d: -f2 | sort -u
+}
+
+cmd_find_by_tag() {
+  local tag="$1"
+  [[ -z "$tag" ]] && die "Usage: charcoal-notes find <tagname>"
+  grep "^TAG:$tag:" "$REPO_ROOT/$NOTES_META_DIR/$INDEX_FILE_NAME" | cut -d: -f3- | sed 's/\.md$//'
+}
+
+cmd_links() {
+  local note_name="$1"
+  [[ -z "$note_name" ]] && die "Usage: charcoal-notes links <note.md>"
+  [[ ! "$note_name" == *.md ]] && note_name="${note_name}.md"
+
+  awk -F: -v note="$note_name" '$1 == "LINK" && $2 == note { sub(/\.md$/, "", $3); print $3 }' "$REPO_ROOT/$NOTES_META_DIR/$INDEX_FILE_NAME"
+}
+
+cmd_backlinks() {
+  local note_name="$1"
+  [[ -z "$note_name" ]] && die "Usage: charcoal-notes backlinks <note.md>"
+  [[ ! "$note_name" == *.md ]] && note_name="${note_name}.md"
+
+  awk -F: -v note="$note_name" '$1 == "LINK" && $3 == note { sub(/\.md$/, "", $2); print $2 }' "$REPO_ROOT/$NOTES_META_DIR/$INDEX_FILE_NAME"
+}
+
+cmd_search() {
+    [[ -z "$1" ]] && die "Usage: charcoal-notes search <term>"
+    if command -v rg &> /dev/null; then
+        rg --ignore-case --glob="!$NOTES_META_DIR" "$@" "$REPO_ROOT"
+    else
+        grep -r -i --exclude-dir="$NOTES_META_DIR" "$@" "$REPO_ROOT"
+    fi
+}
+
+# --- Main Execution Logic ---
+main() {
+  local cmd="$1"
+
+  # If no command is given, default to the interactive fzf find/create flow.
+  if [[ -z "$cmd" ]]; then
+    find_repo_root
+    cmd_fzf_interactive
+    exit 0
+  fi
+
+  # Find the root directory unless the cmd is init or help
+  [[ "$cmd" != "init" && "$cmd" != "help" ]] && find_repo_root
+
+  shift
+
+  case "$cmd" in
+    new)           cmd_new "$@" ;;
+    edit)          cmd_new "$@" ;;
+    open)          cmd_new "$@" ;;
+    list)          cmd_list ;;
+    tags)          cmd_tags ;;
+    find)          cmd_find_by_tag "$1" ;;
+    links)         cmd_links "$1" ;;
+    backlinks)     cmd_backlinks "$1" ;;
+    search)        cmd_search "$@" ;;
+    index)         cmd_index ;;
+    index-file)    cmd_index_file "$1" ;;
+    clean)         cmd_clean ;;
+    init)          cmd_init ;;
+    repo-root)     echo "$REPO_ROOT" ;;
+    -h|--help)     usage ;;
+    *)             die "Unknown command: '$cmd'. Use 'charcoal-notes help' for details." ;;
+  esac
+}
+
+main "$@"
+
