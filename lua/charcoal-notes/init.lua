@@ -23,7 +23,7 @@ local function find_script_path()
 	end
 
 	-- Get the path of the currently running Lua file
-	local plugin_file_path = vim.api.nvim_get_runtime_file("lua/charcoal/init.lua", false)[1]
+	local plugin_file_path = vim.api.nvim_get_runtime_file("lua/charcoal-notes/init.lua", false)[1]
 	if not plugin_file_path then
 		vim.notify("Could not determine charcoal-notes plugin path." .. plugin_file_path, vim.log.levels.ERROR)
 		return nil
